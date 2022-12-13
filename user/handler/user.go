@@ -2,52 +2,51 @@ package handler
 
 import (
 	"context"
+	"user/domain/model"
+	"user/domain/service"
 
-	log "github.com/micro/micro/v3/service/logger"
-
-	pb "user/proto"
+	pb "user/proto/user"
 )
 
-type User struct{}
+type User struct {
+	UserService service.IUserService
+}
+
+func (e *User) Register(ctx context.Context, request *pb.UserRegisterRequest, response *pb.UserRegisterResponse) error {
+	userRegister := &model.User{
+		UserName:     request.UserName,
+		FirstName:    request.FirstName,
+		HashPassword: request.Pwd,
+	}
+	_, err := e.UserService.AddUser(userRegister)
+	if err != nil {
+		return err
+	}
+	response.Message = "添加成功"
+	return nil
+}
+
+func (e *User) Login(ctx context.Context, request *pb.UserLoginRequest, response *pb.UserLoginResponse) error {
+	isOk, err := e.UserService.CheckPwd(request.UserName, request.Pwd)
+	if err != nil {
+		return err
+	}
+	response.IsSuccess = isOk
+	return nil
+}
+
+func (e *User) GetUserInfo(ctx context.Context, request *pb.UserInfoRequest, response *pb.UserInfoResponse) error {
+	user, err := e.UserService.FindUserByName(request.UserName)
+	if err != nil {
+		return err
+	}
+	response.UserName = user.UserName
+	response.FirstName = user.FirstName
+	response.Pwd = user.HashPassword
+	return nil
+}
 
 // Return a new handler
 func New() *User {
 	return &User{}
-}
-
-// Call is a single request handler called via client.Call or the generated client code
-func (e *User) Call(ctx context.Context, req *pb.Request, rsp *pb.Response) error {
-	log.Info("Received User.Call request")
-	rsp.Msg = "Hello " + req.Name
-	return nil
-}
-
-// Stream is a server side stream handler called via client.Stream or the generated client code
-func (e *User) Stream(ctx context.Context, req *pb.StreamingRequest, stream pb.User_StreamStream) error {
-	log.Infof("Received User.Stream request with count: %d", req.Count)
-
-	for i := 0; i < int(req.Count); i++ {
-		log.Infof("Responding: %d", i)
-		if err := stream.Send(&pb.StreamingResponse{
-			Count: int64(i),
-		}); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// PingPong is a bidirectional stream handler called via client.Stream or the generated client code
-func (e *User) PingPong(ctx context.Context, stream pb.User_PingPongStream) error {
-	for {
-		req, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-		log.Infof("Got ping %v", req.Stroke)
-		if err := stream.Send(&pb.Pong{Stroke: req.Stroke}); err != nil {
-			return err
-		}
-	}
 }
